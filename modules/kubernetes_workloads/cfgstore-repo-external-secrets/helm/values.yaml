@@ -1,0 +1,11 @@
+# Application Name and Namespace
+name: "samp-java"
+namespace: "argocd"
+region: "ap-northeast-2"
+secretManagerName: ""
+username: "username"
+password: "token"
+insecure: "false"
+type: "git"
+repoUrl: ""
+serviceAccountName: "external-secrets-samp-java-sa"

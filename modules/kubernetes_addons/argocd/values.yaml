@@ -1,0 +1,32 @@
+redis-ha:
+  enabled: true
+
+controller:
+  enableStatefulSet: true
+
+server:
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+#  ingress:
+#    annotations:
+#      alb.ingress.kubernetes.io/backend-protocol: HTTPS
+#      alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-northeast-2:055703687974:certificate/5b012f64-6eed-41d4-b351-1e4cc7e39e40
+#      alb.ingress.kubernetes.io/healthcheck-path: /healthz
+#      alb.ingress.kubernetes.io/healthcheck-protocol: HTTPS
+#      alb.ingress.kubernetes.io/scheme: internet-facing
+#      alb.ingress.kubernetes.io/target-type: ip
+#    enabled: false
+#    ingressClassName: alb
+#  service:
+#    type: ClusterIP
+
+repoServer:
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+
+configs:
+  cm:
+    #use annotation for tracking but keep labels for compatibility with other tools
+    application.resourceTrackingMethod: annotation+label
