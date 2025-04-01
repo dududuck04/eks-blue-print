@@ -97,6 +97,16 @@ variable "cluster_version" {
   default     = null
 }
 
+variable "eks_cluster_upgrade_policy" {
+  type        = string
+  default     = "EXTENDED"
+  description = "EKS Cluster Upgrade policy"
+  validation {
+    condition     = contains(["STANDARD", "EXTENDED"], var.eks_cluster_upgrade_policy)
+    error_message = "Err: EKS Cluster 업그레이드 정책값이 유효하지 않습니다. 유효한 값은 'STANDARD', 'EXTENDED' 입니다."
+  }
+}
+
 variable "cluster_enabled_log_types" {
   description = "A list of the desired control plane logs to enable. For more information, see Amazon EKS Control Plane Logging documentation (https://docs.aws.amazon.com/eks/latest/userguide/control-plane-logs.html)"
   type        = list(string)
@@ -391,12 +401,6 @@ variable "node_cluster_security_group_name" {
   default     = null
 }
 
-variable "node_security_group_use_name_prefix" {
-  description = "Determines whether node security group name (`node_security_group_name`) is used as a prefix"
-  type        = bool
-  default     = true
-}
-
 variable "node_security_group_description" {
   description = "Description of the node security group created"
   type        = string
@@ -554,15 +558,9 @@ variable "dataplane_wait_duration" {
 
 variable "cluster_addons" {
   description = "사용자 정의 클러스터 애드온 구성"
-  type        = map(object({
-    install              = optional(bool)
-    most_recent          = optional(string)
-    configuration_values = optional(map(any))
-    service_account_role_arn = optional(map(any))
-  }))
-  default = {}
+  type        = any
+  default     = {}
 }
-
 
 variable "cluster_addons_timeouts" {
   description = "Create, update, and delete timeout configurations for the cluster addons"
@@ -616,53 +614,154 @@ variable "self_managed_node_group_defaults" {
 ################################################################################
 
 variable "eks_managed_node_groups" {
-  description = "List of EKS managed node groups"
+  description = "List of EKS managed node group definitions to create"
   type = list(object({
-    name            = string
-    create          = optional(bool, true)  # 기본값 true
-    subnet_ids      = optional(list(string), [])
-    instance_types  = optional(list(string), ["t3.large"])
-    min_size        = optional(number, 1)
-    max_size        = optional(number, 3)
-    desired_size    = optional(number, 2)
-    capacity_type   = optional(string, "ON_DEMAND")
-    disk_size       = optional(number, 50)
-    labels          = optional(map(string), {})
-    taints          = optional(list(object({
-      key    = string
-      value  = string
-      effect = string
-    })), [])
-
-    iam_role_arn                  = optional(string)
-    iam_role_additional_policies  = optional(map(string), {})
-    block_device_mappings         = optional(list(object({
-      device_name = string
-      ebs = object({
-        volume_size = number
-        volume_type = string
-        iops        = optional(number)
-        throughput  = optional(number)
-        encrypted   = optional(bool, true)
-      })
-    })), [])
-
-    update_config = optional(object({
-      max_unavailable_percentage = optional(number, 33)
-    }), {})
-
-    tags = optional(map(string), {})
+    name                       = string
+    use_name_prefix            = optional(bool, false)
+    min_size                   = number
+    desired_size               = number
+    max_size                   = number
+    create_node_security_group = optional(bool, false)
+    node_security_group_name   = optional(string, null)
+    taints                     = optional(list(map(string)), [])
+    labels                     = optional(map(string), {})
   }))
   default = []
 }
 
-
-
-
 variable "eks_managed_node_group_defaults" {
-  description = "Map of EKS managed node group default configurations"
+  description = "Default configurations for EKS Managed Node Groups"
   type        = any
-  default     = {}
+  default = {
+
+    use_name_prefix = false
+    ########################################################################
+    # 노드 그룹의 기본 스케일, 인스턴스 타입, AMI 설정
+    ########################################################################
+    instance_types       = ["t3.medium"]
+    min_size            = 1
+    max_size            = 3
+    desired_size        = 1
+    capacity_type       = "ON_DEMAND"
+    disk_size           = 20                  # EKS NodeGroup에서 기본 디스크 사이즈
+    force_update_version = false
+
+    # AMI 관련
+    ami_id              = null                  # 사용자 정의 AMI를 사용하지 않는다면 "" 유지
+    ami_type            = null                # "AL2_x86_64", "AL2_x86_64_GPU", etc.
+    ami_release_version = null                # 예: "1.27.14-20230901", 없으면 null
+
+    ########################################################################
+    # 플랫폼/부트스트랩 설정
+    ########################################################################
+    platform                    = "linux"
+    cluster_endpoint            = ""
+    cluster_auth_base64         = ""
+    cluster_service_ipv4_cidr   = ""
+    enable_bootstrap_user_data  = false
+    pre_bootstrap_user_data     = ""
+    post_bootstrap_user_data    = null
+    bootstrap_extra_args        = ""
+    user_data_template_path     = ""
+
+    ########################################################################
+    # 기타 NodeGroup 파라미터
+    ########################################################################
+    labels         = {}
+    remote_access  = {}
+    taints         = []
+    update_config  = { max_unavailable_percentage = 33 }
+    timeouts       = {}
+
+    ########################################################################
+    # Launch Template 설정
+    ########################################################################
+    create_launch_template                 = true
+    use_custom_launch_template             = true
+    launch_template_id                     = null
+    launch_template_name                   = null
+    launch_template_use_name_prefix        = false
+    launch_template_version                = null
+    launch_template_default_version        = null
+    update_launch_template_default_version = true
+    launch_template_description            = null
+    launch_template_tags                   = {}
+    tag_specifications                     = ["instance", "volume", "network-interface"]
+
+    ebs_optimized           = null
+    key_name                = null
+    disable_api_termination = null
+    kernel_id               = null
+    ram_disk_id             = null
+
+    # 블록 디바이스(루트볼륨 등) 상세 설정
+    block_device_mappings              = {}
+    capacity_reservation_specification = {}
+    cpu_options                        = {}
+    credit_specification               = {}
+    elastic_gpu_specifications         = []
+    elastic_inference_accelerator      = {}
+    enclave_options                    = {}
+    instance_market_options            = {}
+    license_specifications             = {}
+    metadata_options                   = {}
+    enable_monitoring                  = true
+    network_interfaces                 = []
+    placement                          = {}
+    maintenance_options                = {}
+    private_dns_name_options           = {}
+
+    ########################################################################
+    # IAM Role 관련
+    ########################################################################
+    create_iam_role               = true
+    iam_role_arn                  = null
+    iam_role_name                 = null
+    iam_role_use_name_prefix      = false
+    iam_role_path                 = null
+    iam_role_description          = "EKS managed node group IAM role"
+    iam_role_permissions_boundary = null
+    iam_role_tags                 = {}
+    iam_role_attach_cni_policy    = true
+    iam_role_additional_policies  = {}
+
+    ########################################################################
+    # Autoscaling Schedule
+    ########################################################################
+    create_schedule = false
+    schedules       = {}
+
+    ########################################################################
+    # 보안 그룹
+    ########################################################################
+    # 보통 Node Group에 붙일 SG가 별도로 없다면 빈 리스트로 남김
+    vpc_security_group_ids = []
+    attach_cluster_primary_security_group = true
+
+    ########################################################################
+    # 태그
+    ########################################################################
+    tags = {}
+  }
+}
+
+variable "eks_managed_node_group_add_role" {
+  description = "Additional IAM role policies for EKS managed node groups."
+  type        = map(string)
+  default = {
+    "AmazonSSMManagedInstanceCore" = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+  }
+}
+
+# Access Entries
+variable "authentication_mode" {
+  type        = string
+  default     = "API_AND_CONFIG_MAP"
+  description = "클러스터가 인증된 IAM 보안 주체에 사용할 소스를 설정. (CONFIG_MAP|API_AND_CONFIG_MAP|API)"
+  validation {
+    condition     = contains(["CONFIG_MAP", "API_AND_CONFIG_MAP", "API"], var.authentication_mode)
+    error_message = "Err: cluster_authentication_mode 값이 유효하지 않습니다. 유효한 값은 \"CONFIG_MAP|API_AND_CONFIG_MAP|API\" 중 하나입니다. "
+  }
 }
 
 ################################################################################

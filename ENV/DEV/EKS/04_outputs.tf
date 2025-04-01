@@ -1,8 +1,4 @@
-# VPC CNI Role ARN
-output "vpc_cni_role_arn" {
-  description = "The ARN of the VPC CNI plugin IAM role"
-  value       = module.eks.vpc_cni_role_arn
-}
+
 
 # Cluster Name
 output "cluster_name" {
@@ -22,28 +18,11 @@ output "oidc_provider_arn" {
   value       = module.eks.oidc_provider_arn
 }
 
-# EBS CSI Role ARN
-output "ebs_csi_role_arn" {
-  description = "The ARN of the EBS CSI driver IAM role"
-  value       = module.eks.ebs_csi_role_arn
-}
-
-# EFS CSI Role ARN
-output "efs_csi_role_arn" {
-  description = "The ARN of the EFS CSI driver IAM role"
-  value       = module.eks.efs_csi_role_arn
-}
 
 # Configured Addon Roles ARN
 output "configured_addon_roles_arn" {
   description = "The ARNs of the configured addon IAM roles"
   value       = module.eks.configured_addon_roles_arn
-}
-
-# Managed Addon Roles ARN
-output "managed_addon_roles_arn" {
-  description = "The ARNs of the managed addon IAM roles"
-  value       = module.eks.managed_addon_roles_arn
 }
 
 # Pod Subnet IDs

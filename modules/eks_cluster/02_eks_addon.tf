@@ -1,5 +1,5 @@
 data "aws_eks_addon_version" "this" {
-  for_each = { for k, v in local.aws_managed_addons : k => v if v.install }
+  for_each = { for k, v in local.aws_managed_addons_default : k => v if v.install }
   addon_name            = each.key
   most_recent           = true
   kubernetes_version    = coalesce(var.cluster_version, aws_eks_cluster.this[0].version)
@@ -8,11 +8,12 @@ data "aws_eks_addon_version" "this" {
 locals {
   efs_id = var.efs_id
 
-  aws_managed_addons = {
+  aws_managed_addons_default = {
     "vpc-cni" = {
       install              = true
       before_compute       = true
       service_account_name = "aws-node"
+      role_type            = "service_account"
       configuration_values = {
         env = {
           AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG = "true"
@@ -27,13 +28,15 @@ locals {
       }
     },
     "kube-proxy" = {
-      install              = true
-      before_compute       = true
+      install        = true
+      before_compute = true
+      role_type            = "service_account"
       configuration_values = {}
     },
     "coredns" = {
-      install              = true
-      before_compute       = true
+      install        = true
+      before_compute = false
+      role_type            = "service_account"
       configuration_values = {
         replicaCount = 2
       }
@@ -42,25 +45,33 @@ locals {
       install              = true
       before_compute       = false
       service_account_name = "ebs-csi-controller-sa"
+      role_type            = "service_account"
       configuration_values = {}
     },
     "aws-efs-csi-driver" = {
       install              = true
       before_compute       = false
       service_account_name = "efs-csi-controller-sa"
+      role_type            = "service_account"
+      configuration_values = {}
+    },
+    "eks-pod-identity-agent" = {
+      install              = true
+      before_compute       = false
+      role_type            = "pod_identity"
       configuration_values = {}
     }
-  }
 
-  default_common_addon_config = {
-    preserve                    = true
-    resolve_conflicts           = "OVERWRITE"
-    service_account_role_arn    = null
+  }
+  aws_managed_addons_common = {
+    preserve                 = true
+    resolve_conflicts        = "OVERWRITE"
+    service_account_role_arn = null
     configuration_values = {
       resources = {
         limits = {
-          cpu    = "250m"
-          memory = "256Mi"
+          cpu    = "100m"
+          memory = "150Mi"
         }
         requests = {
           cpu    = "100m"
@@ -76,53 +87,51 @@ locals {
   }
 
   local_addons_merged = {
-    for k, v in local.aws_managed_addons : k => merge(
+    for k, v in local.aws_managed_addons_default : k => merge(
       {
         configuration_values = merge(
-          local.default_common_addon_config.configuration_values,
+          local.aws_managed_addons_common.configuration_values,
           v.configuration_values
         )
       },
-      local.default_common_addon_config,
+      local.aws_managed_addons_common,
       v
     )
   }
 
-  configured_addons = {
-    for k, v in merge(local.local_addons_merged, var.cluster_addons) : k => merge(
-      v,
-      {
-        configuration_values = merge(
-          try(local.local_addons_merged[k].configuration_values, {}),
-          try(var.cluster_addons[k].configuration_values, {})
-        )
-      }
-    )
-  }
-
-  configured_addon_roles_arn = {
-    for k, v in local.configured_addons : k =>
-      contains(keys(local.managed_addon_roles_arn), k) ? local.managed_addon_roles_arn[k] : null
+  merged_configuration_addons = {
+    for k, v in merge(local.local_addons_merged, var.cluster_addons) : k => {
+      configuration_values = merge(
+        local.local_addons_merged[k].configuration_values,
+        try(var.cluster_addons[k].configuration_values, {})
+      )
+    }
   }
 
 }
 
 resource "aws_eks_addon" "this" {
-  for_each = { for k, v in local.configured_addons : k => v if v.install && !v.before_compute && !local.create_outposts_local_cluster }
+  for_each = { for addon_name, addon_config in local.local_addons_merged : addon_name => addon_config if try(var.cluster_addons[addon_name].install, addon_config.install) && !addon_config.before_compute && !local.create_outposts_local_cluster }
 
   cluster_name = aws_eks_cluster.this[0].name
   addon_name   = each.key
 
-  addon_version               = lookup(each.value, "addon_version", data.aws_eks_addon_version.this[each.key].version)
-  configuration_values        = jsonencode(lookup(each.value, "configuration_values", local.default_common_addon_config.configuration_values))
-  preserve                    = lookup(each.value, "preserve", local.default_common_addon_config.preserve)
-  resolve_conflicts_on_create = lookup(each.value, "resolve_conflicts", local.default_common_addon_config.resolve_conflicts)
-  service_account_role_arn    = lookup(local.configured_addon_roles_arn, each.key, null)
+  addon_version               = coalesce(try(each.value.addon_version, null), data.aws_eks_addon_version.this[each.key].version)
+  configuration_values        = jsonencode(try(local.merged_configuration_addons[each.key].configuration_values, each.value.configuration_values))
+  preserve                    = try(var.cluster_addons.preserve, each.value.preserve)
+  resolve_conflicts_on_create = try(var.cluster_addons.resolve_conflicts, each.value.resolve_conflicts)
+  service_account_role_arn    = try(var.cluster_addons[each.key].role_type, each.value.role_type, "service_account") == "service_account" ? lookup(local.configured_addon_roles_arn, each.key, null) : null
 
-  timeouts {
-    create = lookup(each.value.timeouts, "create", local.default_common_addon_config.timeouts.create)
-    update = lookup(each.value.timeouts, "update", local.default_common_addon_config.timeouts.update)
-    delete = lookup(each.value.timeouts, "delete", local.default_common_addon_config.timeouts.delete)
+  # CSI Storage Driver용 Addon 에서는 사용하면 안됨 (지원하지 않음)
+  # https://docs.aws.amazon.com/ko_kr/eks/latest/userguide/pod-identities.html#pod-id-considerations
+
+  dynamic "pod_identity_association" {
+    for_each = (try(var.cluster_addons[each.key].role_type, each.value.role_type) == "pod_identity" && lookup(each.value, "service_account_name", null) != null) ? [1] : []
+
+    content {
+      role_arn        = lookup(local.configured_addon_roles_arn, each.key, null)
+      service_account = lookup(each.value, "service_account_name", null)
+    }
   }
 
   depends_on = [
@@ -142,16 +151,26 @@ resource "aws_eks_addon" "this" {
 }
 
 resource "aws_eks_addon" "before_compute" {
-  for_each = { for k, v in local.aws_managed_addons : k => v if v.install && v.before_compute && !local.create_outposts_local_cluster }
+  for_each = { for addon_name, addon_config in local.local_addons_merged : addon_name => addon_config if try(var.cluster_addons[addon_name].install, addon_config.install ) && addon_config.before_compute && !local.create_outposts_local_cluster }
 
   cluster_name = aws_eks_cluster.this[0].name
   addon_name   = each.key
 
-  addon_version               = lookup(each.value, "addon_version", data.aws_eks_addon_version.this[each.key].version)
-  configuration_values        = jsonencode(lookup(each.value, "configuration_values", local.default_common_addon_config.configuration_values))
-  preserve                    = lookup(each.value, "preserve", local.default_common_addon_config.preserve)
-  resolve_conflicts_on_create = lookup(each.value, "resolve_conflicts", local.default_common_addon_config.resolve_conflicts)
-  service_account_role_arn    = lookup(local.configured_addon_roles_arn, each.key, null)
+  addon_version               = coalesce(try(each.value.addon_version, null), data.aws_eks_addon_version.this[each.key].version)
+  configuration_values        = jsonencode(try(local.merged_configuration_addons[each.key].configuration_values, each.value.configuration_values))
+  preserve                    = try(var.cluster_addons.preserve, each.value.preserve)
+  resolve_conflicts_on_create = try(var.cluster_addons.resolve_conflicts, each.value.resolve_conflicts)
+  service_account_role_arn    = try(var.cluster_addons[each.key].role_type, each.value.role_type, "service_account") == "service_account" ? lookup(local.configured_addon_roles_arn, each.key, null) : null
+
+  # CSI Storage Driver용 Addon 에서는 사용하면 안됨 (지원하지 않음)
+  # https://docs.aws.amazon.com/ko_kr/eks/latest/userguide/pod-identities.html#pod-id-considerations
+  dynamic "pod_identity_association" {
+    for_each = try(var.cluster_addons[each.key].role_type, each.value.role_type) == "pod_identity" ? [1] : []
+    content {
+      role_arn        = lookup(local.configured_addon_roles_arn, each.key, null)
+      service_account = each.value.service_account_name
+    }
+  }
 
   depends_on = [
     kubectl_manifest.eni_config,
@@ -161,7 +180,7 @@ resource "aws_eks_addon" "before_compute" {
 }
 
 resource "kubernetes_storage_class" "efs_storage_class" {
-  count = lookup(local.configured_addons, "aws-efs-csi-driver", { install = false }).install ? 1 : 0
+  count = (try(var.cluster_addons["aws-efs-csi-driver"].install, local.aws_managed_addons_default["aws-efs-csi-driver"].install) ? 1 : 0)
 
   metadata {
     name = "default-efs"
@@ -183,10 +202,32 @@ resource "kubernetes_storage_class" "efs_storage_class" {
   ]
 }
 
+# Add new default storage class - GP3 EBS
+resource "kubernetes_storage_class" "gp3" {
+  count = (try(var.cluster_addons["aws-ebs-csi-driver"].install, local.aws_managed_addons_default["aws-ebs-csi-driver"].install) ? 1 : 0)
 
+  metadata {
+    name = "gp3"
+    annotations = {
+      "storageclass.kubernetes.io/is-default-class" = "true"
+    }
+  }
 
+  storage_provisioner = "ebs.csi.aws.com"
+  reclaim_policy      = "Retain"
+  parameters = {
+    "type"                      = "gp3"
+    "csi.storage.k8s.io/fstype" = "ext4"
+    # "encrypted"                 = local.enable_ebs_encryption ? "'true'" : null
+    # "kmsKeyId"                  = local.enable_ebs_encryption ? "${local.kmsKeyId}" : null
+  }
+  allow_volume_expansion = "true"
+  volume_binding_mode    = "WaitForFirstConsumer"
 
-
+  depends_on = [
+    aws_eks_addon.this["aws-ebs-csi-driver"]
+  ]
+}
 
 # resource "kubernetes_service_account" "addon" {
 #   for_each = { for k, v in local.configured_addons : k => v if v.install && contains(keys(v), "service_account_name") }

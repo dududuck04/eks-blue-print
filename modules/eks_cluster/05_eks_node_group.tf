@@ -1,4 +1,14 @@
 locals {
+  metadata_options = {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  # EKS managed node group
+  default_update_config = {
+    max_unavailable_percentage = 33
+  }
 
   # Self-managed node group
   # default_instance_refresh = {
@@ -7,57 +17,6 @@ locals {
   #     min_healthy_percentage = 66
   #   }
   # }
-
-  eks_managed_node_group_defaults = {
-    subnet_ids      = local.private_subnet_ids
-    instance_types  = ["t3.large"]
-    min_size        = 1
-    max_size        = 3
-    desired_size    = 2
-    capacity_type   = "ON_DEMAND"
-    disk_size       = 50
-    max_unavailable_percentage = 33
-    enable_monitoring                = true
-    platform                         = "linux"
-    use_name_prefix                  = true
-    create_launch_template           = true
-    use_custom_launch_template       = true
-    launch_template_use_name_prefix  = true
-    update_launch_template_default_version = true
-    force_update_version             = "null"
-    create_schedule                  = true
-    enable_bootstrap_user_data       = false
-
-    metadata_options                 = {
-      http_endpoint               = "enabled"
-      http_tokens                 = "required"
-      http_put_response_hop_limit = 2
-    }
-
-    block_device_mappings = [{
-      device_name = "/dev/xvda"
-      ebs = {
-        volume_size = 50
-        volume_type = "gp3"
-        iops        = 3000
-        throughput  = 150
-        encrypted   = true
-      }
-    }]
-    iam_role_additional_policies = {
-      AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-    }
-
-    iam_role_defaults = {
-      create_iam_role               = true
-      iam_role_use_name_prefix      = true
-      iam_role_description          = "EKS managed node group IAM role"
-      iam_role_attach_cni_policy    = true
-    }
-
-    tag_specifications = ["instance", "volume", "network-interface"]
-
-  }
 }
 
 data "aws_ami" "latest" {
@@ -114,7 +73,7 @@ resource "time_sleep" "this" {
 #   # Fargate Profile
 #   cluster_name      = time_sleep.this[0].triggers["cluster_name"]
 #   cluster_ip_family = var.cluster_ip_family
-#   name              = try(each.value.name, each.key)
+#   name              = each.value.name
 #   subnet_ids        = try(each.value.subnet_ids, var.fargate_profile_defaults.subnet_ids, var.subnet_ids)
 #   selectors         = try(each.value.selectors, var.fargate_profile_defaults.selectors, [])
 #   timeouts          = try(each.value.timeouts, var.fargate_profile_defaults.timeouts, {})
@@ -141,107 +100,104 @@ resource "time_sleep" "this" {
 ################################################################################
 
 module "eks_managed_node_group" {
-  source = "./modules/eks-managed-node-group"
-  for_each = { for node in var.eks_managed_node_groups : node.name => node if node.create && var.create_cluster && !local.create_outposts_local_cluster }
+  source   = "./modules/eks-managed-node-group"
+  for_each = { for k, v in var.eks_managed_node_groups : k => v if var.create_cluster && !local.create_outposts_local_cluster }
+
+  create = coalesce(lookup(each.value, "create", null), true)
 
   cluster_name      = time_sleep.this[0].triggers["cluster_name"]
   cluster_version   = time_sleep.this[0].triggers["cluster_version"]
   cluster_ip_family = var.cluster_ip_family
 
   # EKS Managed Node Group
-  name            = try(each.value.name, each.key)
-  use_name_prefix = try(each.value.use_name_prefix, local.eks_managed_node_group_defaults.use_name_prefix, true)
+  name                = coalesce(lookup(each.value, "name", "${time_sleep.this[0].triggers.cluster_name}-nodegroup-${each.key}"))
+  use_name_prefix     = coalesce(lookup(each.value, "use_name_prefix", var.eks_managed_node_group_defaults.use_name_prefix))
 
+  subnet_ids          = coalesce(lookup(each.value, "subnet_ids", local.private_subnet_ids))
+  min_size            = coalesce(lookup(each.value, "min_size", var.eks_managed_node_group_defaults.min_size))
+  max_size            = coalesce(lookup(each.value, "max_size", var.eks_managed_node_group_defaults.max_size))
+  desired_size        = coalesce(lookup(each.value, "desired_size", var.eks_managed_node_group_defaults.desired_size))
 
-  subnet_ids      = try(each.value.subnet_ids, local.eks_managed_node_group_defaults.subnet_ids)
-  min_size        = try(each.value.min_size, local.eks_managed_node_group_defaults.min_size, 1)
-  max_size        = try(each.value.max_size, local.eks_managed_node_group_defaults.max_size, 3)
-  desired_size    = try(each.value.desired_size, local.eks_managed_node_group_defaults.desired_size, 2)
+  ami_id = lookup(each.value, "ami_id", null) != null ? lookup(each.value, "ami_id", null) : var.eks_managed_node_group_defaults.ami_id
+  ami_type = lookup(each.value, "ami_type", null) != null ? lookup(each.value, "ami_type", null) : var.eks_managed_node_group_defaults.ami_type
+  ami_release_version = lookup(each.value, "ami_release_version", null) != null ? lookup(each.value, "ami_release_version", null) : var.eks_managed_node_group_defaults.ami_release_version
+  capacity_type = lookup(each.value, "capacity_type", null) != null ? lookup(each.value, "capacity_type", null) : var.eks_managed_node_group_defaults.capacity_type
+  disk_size = lookup(each.value, "disk_size", null) != null ? lookup(each.value, "disk_size", null) : var.eks_managed_node_group_defaults.disk_size
+  force_update_version = lookup(each.value, "force_update_version", null) != null ? lookup(each.value, "force_update_version", null) : var.eks_managed_node_group_defaults.force_update_version
+  instance_types = lookup(each.value, "instance_types", null) != null ? lookup(each.value, "instance_types", null) : var.eks_managed_node_group_defaults.instance_types
+  labels = lookup(each.value, "labels", null) != null ? lookup(each.value, "labels", null) : var.eks_managed_node_group_defaults.labels
+  remote_access = lookup(each.value, "remote_access", null) != null ? lookup(each.value, "remote_access", null) : var.eks_managed_node_group_defaults.remote_access
+  taints = lookup(each.value, "taints", null) != null ? lookup(each.value, "taints", null) : var.eks_managed_node_group_defaults.taints
+  update_config = lookup(each.value, "update_config", null) != null ? lookup(each.value, "update_config", null) : var.eks_managed_node_group_defaults.update_config
+  timeouts = lookup(each.value, "timeouts", null) != null ? lookup(each.value, "timeouts", null) : var.eks_managed_node_group_defaults.timeouts
 
-  ami_id              = try(each.value.ami_id, data.aws_ami.latest.id)
-  ami_type            = try(each.value.ami_type, var.eks_managed_node_group_defaults.ami_type, null)
-  ami_release_version = try(each.value.ami_release_version, var.eks_managed_node_group_defaults.ami_release_version, null)
+  # User data 관련
+  platform = lookup(each.value, "platform", null) != null ? lookup(each.value, "platform", null) : var.eks_managed_node_group_defaults.platform
+  cluster_endpoint = lookup(each.value, "cluster_endpoint", null) != null ? lookup(each.value, "cluster_endpoint", null) : var.eks_managed_node_group_defaults.cluster_endpoint
+  cluster_auth_base64 = lookup(each.value, "cluster_auth_base64", null) != null ? lookup(each.value, "cluster_auth_base64", null) : var.eks_managed_node_group_defaults.cluster_auth_base64
+  cluster_service_ipv4_cidr = lookup(each.value, "cluster_service_ipv4_cidr", null) != null ? lookup(each.value, "cluster_service_ipv4_cidr", null) : var.eks_managed_node_group_defaults.cluster_service_ipv4_cidr
+  enable_bootstrap_user_data = lookup(each.value, "enable_bootstrap_user_data", null) != null ? lookup(each.value, "enable_bootstrap_user_data", null) : var.eks_managed_node_group_defaults.enable_bootstrap_user_data
+  pre_bootstrap_user_data = lookup(each.value, "pre_bootstrap_user_data", null) != null ? lookup(each.value, "pre_bootstrap_user_data", null) : var.eks_managed_node_group_defaults.pre_bootstrap_user_data
+  post_bootstrap_user_data = lookup(each.value, "post_bootstrap_user_data", null) != null ? lookup(each.value, "post_bootstrap_user_data", null) : var.eks_managed_node_group_defaults.post_bootstrap_user_data
+  bootstrap_extra_args = lookup(each.value, "bootstrap_extra_args", null) != null ? lookup(each.value, "bootstrap_extra_args", null) : var.eks_managed_node_group_defaults.bootstrap_extra_args
+  user_data_template_path = lookup(each.value, "user_data_template_path", null) != null ? lookup(each.value, "user_data_template_path", null) : var.eks_managed_node_group_defaults.user_data_template_path
 
+  # Launch Template 관련
+  create_launch_template = lookup(each.value, "create_launch_template", null) != null ? lookup(each.value, "create_launch_template", null) : var.eks_managed_node_group_defaults.create_launch_template
+  use_custom_launch_template = lookup(each.value, "use_custom_launch_template", null) != null ? lookup(each.value, "use_custom_launch_template", null) : var.eks_managed_node_group_defaults.use_custom_launch_template
+  launch_template_id = lookup(each.value, "launch_template_id", null) != null ? lookup(each.value, "launch_template_id", null) : var.eks_managed_node_group_defaults.launch_template_id
+  launch_template_name = lookup(each.value, "launch_template_name", null) != null ? lookup(each.value, "launch_template_name", null) : each.value.name
+  launch_template_use_name_prefix = lookup(each.value, "launch_template_use_name_prefix", null) != null ? lookup(each.value, "launch_template_use_name_prefix", null) : var.eks_managed_node_group_defaults.launch_template_use_name_prefix
+  launch_template_version = lookup(each.value, "launch_template_version", null) != null ? lookup(each.value, "launch_template_version", null) : var.eks_managed_node_group_defaults.launch_template_version
+  launch_template_default_version = lookup(each.value, "launch_template_default_version", null) != null ? lookup(each.value, "launch_template_default_version", null) : var.eks_managed_node_group_defaults.launch_template_default_version
+  update_launch_template_default_version = lookup(each.value, "update_launch_template_default_version", null) != null ? lookup(each.value, "update_launch_template_default_version", null) : var.eks_managed_node_group_defaults.update_launch_template_default_version
+  launch_template_description = lookup(each.value, "launch_template_description", null) != null ? lookup(each.value, "launch_template_description", null) : var.eks_managed_node_group_defaults.launch_template_description
+  launch_template_tags = lookup(each.value, "launch_template_tags", null) != null ? lookup(each.value, "launch_template_tags", null) : var.eks_managed_node_group_defaults.launch_template_tags
+  tag_specifications = lookup(each.value, "tag_specifications", null) != null ? lookup(each.value, "tag_specifications", null) : var.eks_managed_node_group_defaults.tag_specifications
 
-  capacity_type        = try(each.value.capacity_type, local.eks_managed_node_group_defaults.capacity_type, null)
-  disk_size            = try(each.value.disk_size, local.eks_managed_node_group_defaults.disk_size, null)
-  force_update_version = try(each.value.force_update_version, local.eks_managed_node_group_defaults.force_update_version, null)
-  instance_types       = try(each.value.instance_types, local.eks_managed_node_group_defaults.instance_types, null)
-  labels               = try(each.value.labels, local.eks_managed_node_group_defaults.labels, null)
+  ebs_optimized = lookup(each.value, "ebs_optimized", null) != null ? lookup(each.value, "ebs_optimized", null) : var.eks_managed_node_group_defaults.ebs_optimized
+  key_name = lookup(each.value, "key_name", null) != null ? lookup(each.value, "key_name", null) : var.eks_managed_node_group_defaults.key_name
+  disable_api_termination = lookup(each.value, "disable_api_termination", null) != null ? lookup(each.value, "disable_api_termination", null) : var.eks_managed_node_group_defaults.disable_api_termination
+  kernel_id = lookup(each.value, "kernel_id", null) != null ? lookup(each.value, "kernel_id", null) : var.eks_managed_node_group_defaults.kernel_id
+  ram_disk_id = lookup(each.value, "ram_disk_id", null) != null ? lookup(each.value, "ram_disk_id", null) : var.eks_managed_node_group_defaults.ram_disk_id
 
-  remote_access = try(each.value.remote_access, local.eks_managed_node_group_defaults.remote_access, {})
-  taints        = try(each.value.taints, local.eks_managed_node_group_defaults.taints, {})
-  update_config = try(each.value.update_config, local.eks_managed_node_group_defaults.update_config)
-  timeouts      = try(each.value.timeouts, local.eks_managed_node_group_defaults.timeouts, {})
-
-  # User data
-  platform                   = try(each.value.platform, local.eks_managed_node_group_defaults.platform, "linux")
-  cluster_endpoint           = try(time_sleep.this[0].triggers["cluster_endpoint"], "")
-  cluster_auth_base64        = try(time_sleep.this[0].triggers["cluster_certificate_authority_data"], "")
-  cluster_service_ipv4_cidr  = var.cluster_service_ipv4_cidr
-  enable_bootstrap_user_data = try(each.value.enable_bootstrap_user_data, local.eks_managed_node_group_defaults.enable_bootstrap_user_data, false)
-  pre_bootstrap_user_data    = try(each.value.pre_bootstrap_user_data, local.eks_managed_node_group_defaults.pre_bootstrap_user_data, "")
-  post_bootstrap_user_data   = try(each.value.post_bootstrap_user_data, local.eks_managed_node_group_defaults.post_bootstrap_user_data, "")
-  bootstrap_extra_args       = try(each.value.bootstrap_extra_args, local.eks_managed_node_group_defaults.bootstrap_extra_args, "")
-  user_data_template_path    = try(each.value.user_data_template_path, local.eks_managed_node_group_defaults.user_data_template_path, "")
-
-  # Launch Template
-  create_launch_template                 = try(each.value.create_launch_template, local.eks_managed_node_group_defaults.create_launch_template, true)
-  use_custom_launch_template             = try(each.value.use_custom_launch_template, local.eks_managed_node_group_defaults.use_custom_launch_template, true)
-  launch_template_id                     = try(each.value.launch_template_id, local.eks_managed_node_group_defaults.launch_template_id, "")
-  launch_template_name                   = try(each.value.launch_template_name, local.eks_managed_node_group_defaults.launch_template_name, each.key)
-  launch_template_use_name_prefix        = try(each.value.launch_template_use_name_prefix, local.eks_managed_node_group_defaults.launch_template_use_name_prefix, true)
-  launch_template_version                = try(each.value.launch_template_version, local.eks_managed_node_group_defaults.launch_template_version, null)
-  launch_template_default_version        = try(each.value.launch_template_default_version, local.eks_managed_node_group_defaults.launch_template_default_version, null)
-  update_launch_template_default_version = try(each.value.update_launch_template_default_version, local.eks_managed_node_group_defaults.update_launch_template_default_version, true)
-  launch_template_description            = try(each.value.launch_template_description, local.eks_managed_node_group_defaults.launch_template_description, "Custom launch template for ${try(each.value.name, each.key)} EKS managed node group")
-  launch_template_tags                   = try(each.value.launch_template_tags, local.eks_managed_node_group_defaults.launch_template_tags, {})
-  tag_specifications                     = try(each.value.tag_specifications, local.eks_managed_node_group_defaults.tag_specifications, ["instance", "volume", "network-interface"])
-
-  ebs_optimized           = try(each.value.ebs_optimized, local.eks_managed_node_group_defaults.ebs_optimized, null)
-  key_name                = try(each.value.key_name, local.eks_managed_node_group_defaults.key_name, null)
-  disable_api_termination = try(each.value.disable_api_termination, local.eks_managed_node_group_defaults.disable_api_termination, null)
-  kernel_id               = try(each.value.kernel_id, local.eks_managed_node_group_defaults.kernel_id, null)
-  ram_disk_id             = try(each.value.ram_disk_id, local.eks_managed_node_group_defaults.ram_disk_id, null)
-
-  block_device_mappings              = try(each.value.block_device_mappings, local.eks_managed_node_group_defaults.block_device_mappings, {})
-  capacity_reservation_specification = try(each.value.capacity_reservation_specification, local.eks_managed_node_group_defaults.capacity_reservation_specification, {})
-  cpu_options                        = try(each.value.cpu_options, local.eks_managed_node_group_defaults.cpu_options, {})
-  credit_specification               = try(each.value.credit_specification, local.eks_managed_node_group_defaults.credit_specification, {})
-  elastic_gpu_specifications         = try(each.value.elastic_gpu_specifications, local.eks_managed_node_group_defaults.elastic_gpu_specifications, {})
-  elastic_inference_accelerator      = try(each.value.elastic_inference_accelerator, local.eks_managed_node_group_defaults.elastic_inference_accelerator, {})
-  enclave_options                    = try(each.value.enclave_options, local.eks_managed_node_group_defaults.enclave_options, {})
-  instance_market_options            = try(each.value.instance_market_options, local.eks_managed_node_group_defaults.instance_market_options, {})
-  license_specifications             = try(each.value.license_specifications, local.eks_managed_node_group_defaults.license_specifications, {})
-  metadata_options                   = try(each.value.metadata_options, local.eks_managed_node_group_defaults.metadata_options)
-  enable_monitoring                  = try(each.value.enable_monitoring, local.eks_managed_node_group_defaults.enable_monitoring)
-  network_interfaces                 = try(each.value.network_interfaces, local.eks_managed_node_group_defaults.network_interfaces, [])
-  placement                          = try(each.value.placement, local.eks_managed_node_group_defaults.placement, {})
-  maintenance_options                = try(each.value.maintenance_options, local.eks_managed_node_group_defaults.maintenance_options, {})
-  private_dns_name_options           = try(each.value.private_dns_name_options, local.eks_managed_node_group_defaults.private_dns_name_options, {})
+  block_device_mappings = lookup(each.value, "block_device_mappings", null) != null ? lookup(each.value, "block_device_mappings", null) : var.eks_managed_node_group_defaults.block_device_mappings
+  capacity_reservation_specification = lookup(each.value, "capacity_reservation_specification", null) != null ? lookup(each.value, "capacity_reservation_specification", null) : var.eks_managed_node_group_defaults.capacity_reservation_specification
+  cpu_options = lookup(each.value, "cpu_options", null) != null ? lookup(each.value, "cpu_options", null) : var.eks_managed_node_group_defaults.cpu_options
+  credit_specification = lookup(each.value, "credit_specification", null) != null ? lookup(each.value, "credit_specification", null) : var.eks_managed_node_group_defaults.credit_specification
+  elastic_gpu_specifications = lookup(each.value, "elastic_gpu_specifications", null) != null ? lookup(each.value, "elastic_gpu_specifications", null) : var.eks_managed_node_group_defaults.elastic_gpu_specifications
+  elastic_inference_accelerator = lookup(each.value, "elastic_inference_accelerator", null) != null ? lookup(each.value, "elastic_inference_accelerator", null) : var.eks_managed_node_group_defaults.elastic_inference_accelerator
+  enclave_options = lookup(each.value, "enclave_options", null) != null ? lookup(each.value, "enclave_options", null) : var.eks_managed_node_group_defaults.enclave_options
+  instance_market_options = lookup(each.value, "instance_market_options", null) != null ? lookup(each.value, "instance_market_options", null) : var.eks_managed_node_group_defaults.instance_market_options
+  license_specifications = lookup(each.value, "license_specifications", null) != null ? lookup(each.value, "license_specifications", null) : var.eks_managed_node_group_defaults.license_specifications
+  metadata_options = lookup(each.value, "metadata_options", null) != null ? lookup(each.value, "metadata_options", null) : var.eks_managed_node_group_defaults.metadata_options
+  enable_monitoring = lookup(each.value, "enable_monitoring", null) != null ? lookup(each.value, "enable_monitoring", null) : var.eks_managed_node_group_defaults.enable_monitoring
+  network_interfaces = lookup(each.value, "network_interfaces", null) != null ? lookup(each.value, "network_interfaces", null) : var.eks_managed_node_group_defaults.network_interfaces
+  placement = lookup(each.value, "placement", null) != null ? lookup(each.value, "placement", null) : var.eks_managed_node_group_defaults.placement
+  maintenance_options = lookup(each.value, "maintenance_options", null) != null ? lookup(each.value, "maintenance_options", null) : var.eks_managed_node_group_defaults.maintenance_options
+  private_dns_name_options = lookup(each.value, "private_dns_name_options", null) != null ? lookup(each.value, "private_dns_name_options", null) : var.eks_managed_node_group_defaults.private_dns_name_options
 
   # IAM role
-  create_iam_role               = try(each.value.create_iam_role, local.eks_managed_node_group_defaults.create_iam_role, true)
-  iam_role_arn                  = try(each.value.iam_role_arn, local.eks_managed_node_group_defaults.iam_role_arn, null)
-  iam_role_name                 = try(each.value.iam_role_name, local.eks_managed_node_group_defaults.iam_role_name, null)
-  iam_role_use_name_prefix      = try(each.value.iam_role_use_name_prefix, local.eks_managed_node_group_defaults.iam_role_use_name_prefix, true)
-  iam_role_path                 = try(each.value.iam_role_path, local.eks_managed_node_group_defaults.iam_role_path, null)
-  iam_role_description          = try(each.value.iam_role_description, local.eks_managed_node_group_defaults.iam_role_description, "EKS managed node group IAM role")
-  iam_role_permissions_boundary = try(each.value.iam_role_permissions_boundary, local.eks_managed_node_group_defaults.iam_role_permissions_boundary, null)
-  iam_role_tags                 = try(each.value.iam_role_tags, local.eks_managed_node_group_defaults.iam_role_tags, {})
-  iam_role_attach_cni_policy    = try(each.value.iam_role_attach_cni_policy, local.eks_managed_node_group_defaults.iam_role_attach_cni_policy, true)
-  # To better understand why this `lookup()` logic is required, see:
-  # https://github.com/hashicorp/terraform/issues/31646#issuecomment-1217279031
-  iam_role_additional_policies = lookup(each.value, "iam_role_additional_policies", lookup(local.eks_managed_node_group_defaults, "iam_role_additional_policies", {}))
+  create_iam_role              = lookup(each.value, "create_iam_role", null) != null ? lookup(each.value, "create_iam_role", null) : var.eks_managed_node_group_defaults.create_iam_role
+  iam_role_arn                 = lookup(each.value, "iam_role_arn", null) != null ? lookup(each.value, "iam_role_arn", null) : var.eks_managed_node_group_defaults.iam_role_arn
+  iam_role_name                = lookup(each.value, "iam_role_name", null) != null ? lookup(each.value, "iam_role_name", null) : var.eks_managed_node_group_defaults.iam_role_name
+  iam_role_use_name_prefix     = lookup(each.value, "iam_role_use_name_prefix", null) != null ? lookup(each.value, "iam_role_use_name_prefix", null) : var.eks_managed_node_group_defaults.iam_role_use_name_prefix
+  iam_role_path                = lookup(each.value, "iam_role_path", null) != null ? lookup(each.value, "iam_role_path", null) : var.eks_managed_node_group_defaults.iam_role_path
+  iam_role_description         = lookup(each.value, "iam_role_description", null) != null ? lookup(each.value, "iam_role_description", null) : var.eks_managed_node_group_defaults.iam_role_description
+  iam_role_permissions_boundary = lookup(each.value, "iam_role_permissions_boundary", null) != null ? lookup(each.value, "iam_role_permissions_boundary", null) : var.eks_managed_node_group_defaults.iam_role_permissions_boundary
+  iam_role_tags                = lookup(each.value, "iam_role_tags", null) != null ? lookup(each.value, "iam_role_tags", null) : var.eks_managed_node_group_defaults.iam_role_tags
+  iam_role_attach_cni_policy   = lookup(each.value, "iam_role_attach_cni_policy", null) != null ? lookup(each.value, "iam_role_attach_cni_policy", null) : var.eks_managed_node_group_defaults.iam_role_attach_cni_policy
+  iam_role_additional_policies = lookup(each.value, "iam_role_additional_policies", null) != null ? lookup(each.value, "iam_role_additional_policies", null) : var.eks_managed_node_group_defaults.iam_role_additional_policies
 
-  create_schedule = try(each.value.create_schedule, local.eks_managed_node_group_defaults.create_schedule, true)
-  schedules       = try(each.value.schedules, local.eks_managed_node_group_defaults.schedules, {})
+  create_schedule = lookup(each.value, "create_schedule", null) != null ? lookup(each.value, "create_schedule", null) : var.eks_managed_node_group_defaults.create_schedule
+  schedules       = lookup(each.value, "schedules", null) != null ? lookup(each.value, "schedules", null) : var.eks_managed_node_group_defaults.schedules
 
   # Security group
-  vpc_security_group_ids            = compact(concat([local.node_cluster_sg_id], try(each.value.vpc_security_group_ids, var.eks_managed_node_group_defaults.vpc_security_group_ids, [])))
-  cluster_primary_security_group_id = try(each.value.attach_cluster_primary_security_group, local.eks_managed_node_group_defaults.attach_cluster_primary_security_group, false) ? aws_eks_cluster.this[0].vpc_config[0].cluster_security_group_id : null
+  # vpc_security_group_ids = (lookup(each.value, "create_node_security_group", false)) ? [aws_security_group.node_cluster_security_group[each.value.name].id] : []
+  vpc_security_group_ids = lookup(each.value, "create_node_security_group", false) ? [local.node_cluster_sg_ids[each.value.name]] : []
+  cluster_primary_security_group_id = lookup(each.value, "attach_cluster_primary_security_group", true) ? aws_eks_cluster.this[0].vpc_config[0].cluster_security_group_id : null
 
-  tags = merge(var.tags, try(each.value.tags, local.eks_managed_node_group_defaults.tags, {}))
+  tags = merge(var.tags, coalesce(try(each.value.tags, var.eks_managed_node_group_defaults.tags), {}))
 }
 
 ################################################################################
@@ -261,7 +217,7 @@ module "eks_managed_node_group" {
 #   # Autoscaling Group
 #   create_autoscaling_group = try(each.value.create_autoscaling_group, var.self_managed_node_group_defaults.create_autoscaling_group, true)
 #
-#   name            = try(each.value.name, each.key)
+#   name            = each.value.name
 #   use_name_prefix = try(each.value.use_name_prefix, var.self_managed_node_group_defaults.use_name_prefix, true)
 #
 #   availability_zones = try(each.value.availability_zones, var.self_managed_node_group_defaults.availability_zones, null)
@@ -318,12 +274,12 @@ module "eks_managed_node_group" {
 #   # Launch Template
 #   create_launch_template                 = try(each.value.create_launch_template, var.self_managed_node_group_defaults.create_launch_template, true)
 #   launch_template_id                     = try(each.value.launch_template_id, var.self_managed_node_group_defaults.launch_template_id, "")
-#   launch_template_name                   = try(each.value.launch_template_name, var.self_managed_node_group_defaults.launch_template_name, each.key)
-#   launch_template_use_name_prefix        = try(each.value.launch_template_use_name_prefix, var.self_managed_node_group_defaults.launch_template_use_name_prefix, true)
+#   launch_template_name                   = try(each.value.launch_template_name, var.self_managed_node_group_defaults.launch_template_name, each.value.name)
+#   launch_template_use_name_prefix        = try(each.value.launch_template_use_name_prefix, var.self_managed_node_group_defaults.launch_template_use_name_prefix, false)
 #   launch_template_version                = try(each.value.launch_template_version, var.self_managed_node_group_defaults.launch_template_version, null)
 #   launch_template_default_version        = try(each.value.launch_template_default_version, var.self_managed_node_group_defaults.launch_template_default_version, null)
 #   update_launch_template_default_version = try(each.value.update_launch_template_default_version, var.self_managed_node_group_defaults.update_launch_template_default_version, true)
-#   launch_template_description            = try(each.value.launch_template_description, var.self_managed_node_group_defaults.launch_template_description, "Custom launch template for ${try(each.value.name, each.key)} self managed node group")
+#   launch_template_description            = try(each.value.launch_template_description, var.self_managed_node_group_defaults.launch_template_description, "Custom launch template for ${each.value.name} self managed node group")
 #   launch_template_tags                   = try(each.value.launch_template_tags, var.self_managed_node_group_defaults.launch_template_tags, {})
 #   tag_specifications                     = try(each.value.tag_specifications, var.self_managed_node_group_defaults.tag_specifications, ["instance", "volume", "network-interface"])
 #
@@ -349,7 +305,7 @@ module "eks_managed_node_group" {
 #   instance_requirements              = try(each.value.instance_requirements, var.self_managed_node_group_defaults.instance_requirements, {})
 #   instance_market_options            = try(each.value.instance_market_options, var.self_managed_node_group_defaults.instance_market_options, {})
 #   license_specifications             = try(each.value.license_specifications, var.self_managed_node_group_defaults.license_specifications, {})
-#   metadata_options                   = try(each.value.metadata_options, var.self_managed_node_group_defaults.metadata_options)
+#   metadata_options                   = try(each.value.metadata_options, var.self_managed_node_group_defaults.metadata_options, local.metadata_options)
 #   enable_monitoring                  = try(each.value.enable_monitoring, var.self_managed_node_group_defaults.enable_monitoring, true)
 #   network_interfaces                 = try(each.value.network_interfaces, var.self_managed_node_group_defaults.network_interfaces, [])
 #   placement                          = try(each.value.placement, var.self_managed_node_group_defaults.placement, {})

@@ -45,18 +45,10 @@ locals {
 
 
   # 이름 설정
-  cluster_primary_sg_name = coalesce(var.primary_cluster_security_group_name, "${var.cluster_name}-sg")
-  cluster_additional_sg_name = coalesce(var.additional_cluster_security_group_name, "${var.cluster_name}-add-sg")
-  cluster_node_sg_name = coalesce(var.node_cluster_security_group_name, "${var.cluster_name}-node-sg")
-
   primary_cluster_sg_id = local.create_primary_cluster_sg ? aws_eks_cluster.this[0].vpc_config[0].cluster_security_group_id : data.aws_security_group.primary_cluster_security_group_id[0].id
   additional_cluster_sg_id = local.create_additional_cluster_sg ? aws_security_group.additional_cluster_security_group[0].id : data.aws_security_group.additional_cluster_security_group_id[0].id
-  node_cluster_sg_id       = local.create_node_cluster_sg ? aws_security_group.node_cluster_security_group[0].id : data.aws_security_group.node_cluster_security_group_id[0].id
+  node_cluster_sg_ids = { for key, sg in aws_security_group.node_cluster_security_group : key => sg.id }
 
-  cluster_security_group_ids = concat(
-    [local.additional_cluster_sg_id],
-    [local.node_cluster_sg_id]
-  )
 
   # 추가 보안 그룹 규칙 설정
   additional_cluster_security_group_rules = {
@@ -185,6 +177,12 @@ locals {
     }
   } : k => v if var.node_security_group_enable_recommended_rules }
 
+  all_node_sg_rules = merge(
+    local.node_cluster_security_group_rules,
+    local.node_security_group_recommended_rules,
+    var.node_security_group_additional_rules
+  )
+
 }
 
 # 기본 보안 그룹 생성 (조건적)
@@ -208,8 +206,7 @@ resource "aws_security_group" "primary_cluster_security_group" {
 resource "aws_security_group" "additional_cluster_security_group" {
   count = local.create_additional_cluster_sg ? 1 : 0
 
-  name        = var.cluster_security_group_use_name_prefix ? null : var.additional_cluster_security_group_name
-  name_prefix = var.cluster_security_group_use_name_prefix ? "${var.cluster_name}-add${var.prefix_separator}" : null
+  name        = var.additional_cluster_security_group_name != null ? var.additional_cluster_security_group_name : "${var.cluster_name}-add${var.prefix_separator}"
   description = var.cluster_security_group_description
   vpc_id      = local.vpc_id
 
@@ -246,17 +243,53 @@ resource "aws_security_group_rule" "additional_cluster_security_group_rules" {
   source_security_group_id = try(each.value.use_source_id ? try(local.primary_cluster_sg_id, null) : lookup(each.value, "source_security_group_id", null))
 }
 
-resource "aws_security_group" "node_cluster_security_group" {
-  count = local.create_node_cluster_sg ? 1 : 0
+# resource "aws_security_group" "node_cluster_security_group" {
+#   count = local.create_node_cluster_sg ? 1 : 0
+#
+#   name        = var.node_security_group_use_name_prefix ? null : local.cluster_node_sg_name
+#   name_prefix = var.node_security_group_use_name_prefix ? "${var.cluster_name}-node${var.prefix_separator}" : null
+#   description = var.node_security_group_description
+#   vpc_id      = local.vpc_id
+#
+#   tags = merge(
+#     var.tags,
+#     var.node_security_group_tags
+#   )
+#
+#   lifecycle {
+#     create_before_destroy = true
+#   }
+# }
 
-  name        = var.node_security_group_use_name_prefix ? null : local.cluster_node_sg_name
-  name_prefix = var.node_security_group_use_name_prefix ? "${var.cluster_name}-node${var.prefix_separator}" : null
+resource "aws_security_group" "node_cluster_security_group" {
+  for_each = {
+    for ng in var.eks_managed_node_groups :
+    ng.name => ng
+    if ng.create_node_security_group == true
+  }
+  name        = lookup(each.value, "use_name_prefix", false) ? null : each.value.node_security_group_name
+  name_prefix = lookup(each.value, "use_name_prefix", false) ? "${each.value.node_security_group_name}${var.prefix_separator}" : null
   description = var.node_security_group_description
   vpc_id      = local.vpc_id
 
+  dynamic "ingress" {
+    for_each = local.all_node_sg_rules
+    content {
+      description      = ingress.value.description
+      protocol         = ingress.value.protocol
+      from_port        = ingress.value.from_port
+      to_port          = ingress.value.to_port
+      cidr_blocks      = try(ingress.value.use_source_id ? null : lookup(ingress.value, "cidr_blocks", null))
+      ipv6_cidr_blocks = try(ingress.value.use_source_id ? null : lookup(ingress.value, "ipv6_cidr_blocks", null))
+      self             = try(ingress.value.use_source_id ? null : lookup(ingress.value, "self", null))
+      # 추가 속성이 있다면 여기에 추가
+    }
+  }
+
   tags = merge(
     var.tags,
-    var.node_security_group_tags
+    var.node_security_group_tags,
+    { "NodeGroup" = each.key }
   )
 
   lifecycle {
@@ -264,25 +297,23 @@ resource "aws_security_group" "node_cluster_security_group" {
   }
 }
 
-resource "aws_security_group_rule" "cluster_node_security_group_rules" {
-  for_each = { for k, v in merge(
-    local.node_cluster_security_group_rules,
-    local.node_security_group_recommended_rules,
-    var.node_security_group_additional_rules
-  ) : k => v }
+resource "aws_ec2_tag" "node_cluster_security_group_name" {
+  for_each    = aws_security_group.node_cluster_security_group
+  resource_id = each.value.id
+  key         = "Name"
+  value       = each.value.name
+}
 
-  # Required
-  security_group_id        = local.node_cluster_sg_id
-  protocol                 = each.value.protocol
-  from_port                = each.value.from_port
-  to_port                  = each.value.to_port
-  type                     = each.value.type
+resource "aws_ec2_tag" "primary_cluster_security_group_name" {
+  count       = length(aws_security_group.primary_cluster_security_group)
+  resource_id = aws_security_group.primary_cluster_security_group[count.index].id
+  key         = "Name"
+  value       = aws_security_group.primary_cluster_security_group[count.index].name
+}
 
-  # Optional
-  description              = lookup(each.value, "description", null)
-  cidr_blocks              = try(each.value.use_source_id ? null : lookup(each.value, "cidr_blocks", null))
-  ipv6_cidr_blocks         = try(each.value.use_source_id ? null : lookup(each.value, "ipv6_cidr_blocks", null))
-  prefix_list_ids          = try(each.value.use_source_id ? null : lookup(each.value, "prefix_list_ids", null))
-  self                     = try(each.value.use_source_id ? null : lookup(each.value, "self", null))
-  source_security_group_id = try(each.value.use_source_id ? try(local.primary_cluster_sg_id, null) : lookup(each.value, "source_security_group_id", null))
+resource "aws_ec2_tag" "additional_cluster_security_group_name" {
+  count       = length(aws_security_group.additional_cluster_security_group)
+  resource_id = aws_security_group.additional_cluster_security_group[count.index].id
+  key         = "Name"
+  value       = aws_security_group.additional_cluster_security_group[count.index].name
 }

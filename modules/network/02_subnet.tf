@@ -77,7 +77,7 @@ resource "aws_subnet" "private_subnets" {
       Name = "${var.env}-${var.pjt}-eks-private-subnet-${lookup(local.az_short_names, local.selected_az[count.index], null)}",
       Service = "private-${lookup(local.az_short_names, local.selected_az[count.index], null)}",
       "kubernetes.io/cluster/${var.env}-${var.pjt}-cluster" = "shared",
-      "kubernetes.io/role/internal-elb" = 1
+      "kubernetes.io/role/internal-elb" = 1,
     },
     var.private_subnet_tags
   )

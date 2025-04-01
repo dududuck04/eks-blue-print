@@ -15,7 +15,7 @@ apply:
 	AWS_PROFILE=$(PROFILE_NAME) terraform apply -var-file=$(ENV_NAME).tfvars 2>&1 -auto-approve | tee results/apply-$(ENV_NAME)-output-$(CURRENT_DATE).log
 
 destroy:
-	AWS_PROFILE=$(PROFILE_NAME) terraform destroy -var-file=$(ENV_NAME).tfvars 2>&1 | tee results/destroy-$(ENV_NAME)-output-$(CURRENT_DATE).log
+	AWS_PROFILE=$(PROFILE_NAME) terraform destroy -var-file=$(ENV_NAME).tfvars 2>&1 -auto-approve | tee results/destroy-$(ENV_NAME)-output-$(CURRENT_DATE).log
 
 clean:
 	rm -rf .terraform

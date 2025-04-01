@@ -51,11 +51,16 @@ resource "aws_eks_cluster" "this" {
   enabled_cluster_log_types = var.cluster_enabled_log_types
 
   vpc_config {
-    security_group_ids = local.cluster_security_group_ids
+    security_group_ids = [local.additional_cluster_sg_id]
     subnet_ids = data.aws_subnets.private_subnets.ids
     endpoint_private_access = var.cluster_endpoint_private_access
     endpoint_public_access = var.cluster_endpoint_public_access
     public_access_cidrs = var.cluster_endpoint_public_access_cidrs
+  }
+
+  access_config {
+    authentication_mode = var.authentication_mode
+    bootstrap_cluster_creator_admin_permissions = true
   }
 
   dynamic "kubernetes_network_config" {
@@ -88,6 +93,10 @@ resource "aws_eks_cluster" "this" {
       }
       resources = encryption_config.value.resources
     }
+  }
+
+  upgrade_policy {
+    support_type = var.eks_cluster_upgrade_policy
   }
 
   tags = merge(
@@ -159,8 +168,7 @@ resource "kubectl_manifest" "eni_config" {
     }
     spec = {
       securityGroups = [
-        local.primary_cluster_sg_id,
-        local.node_cluster_sg_id,
+        local.primary_cluster_sg_id
       ]
       subnet = each.value
     }

@@ -52,6 +52,7 @@ output "cluster_primary_security_group_id" {
   value       = try(aws_eks_cluster.this[0].vpc_config[0].cluster_security_group_id, null)
 }
 
+
 # ################################################################################
 # # KMS Key
 # ################################################################################
@@ -141,47 +142,17 @@ output "cluster_iam_role_unique_id" {
   value       = try(aws_iam_role.cluster_rol[0].unique_id, null)
 }
 
-output "efs_csi_role_name" {
-  description = "IAM role name for the EFS CSI driver"
-  value       = try(aws_iam_role.addon_roles["aws-efs-csi-driver"].name, null)
-}
-
-output "efs_csi_role_arn" {
-  description = "IAM role ARN for the EFS CSI driver"
-  value       = try(aws_iam_role.addon_roles["aws-efs-csi-driver"].arn, null)
-}
-
-output "ebs_csi_role_name" {
-  description = "IAM role name for the EBS CSI driver"
-  value       = try(aws_iam_role.addon_roles["aws-ebs-csi-driver"].name, null)
-}
-
-output "ebs_csi_role_arn" {
-  description = "IAM role ARN for the EBS CSI driver"
-  value       = try(aws_iam_role.addon_roles["aws-ebs-csi-driver"].arn, null)
-}
-
-output "vpc_cni_role_name" {
-  description = "IAM role name for the VPC CNI plugin"
-  value       = try(aws_iam_role.addon_roles["vpc-cni"].name, null)
-}
-
-output "vpc_cni_role_arn" {
-  description = "IAM role ARN for the VPC CNI plugin"
-  value       = try(aws_iam_role.addon_roles["vpc-cni"].arn, null)
-}
-
-
 ################################################################################
 # EKS Addons
 ################################################################################
 output "oidc_sub_values" {
-  value = [
-    for addon in var.cluster_addons :
-    format("system:serviceaccount:kube-system:%s-sa", addon.name)
-    if addon.install
-  ]
+  value = {
+    for k, v in local.local_addons_merged :
+    k => format("system:serviceaccount:kube-system:%s", v.service_account_name)
+    if try(var.cluster_addons[k].install, v.install) && contains(keys(v), "service_account_name")
+  }
 }
+
 
 ################################################################################
 # EKS Identity Provider
@@ -264,10 +235,6 @@ output "oidc_sub_values" {
 
 output "configured_addon_roles_arn" {
   value = local.configured_addon_roles_arn
-}
-
-output "managed_addon_roles_arn" {
-  value = local.managed_addon_roles_arn
 }
 
 output "eni_config_applied" {

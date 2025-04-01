@@ -11,9 +11,14 @@ locals {
   cluster_encryption_policy_name      = coalesce(var.cluster_encryption_policy_name, "${local.cluster_role_name}-ClusterEncryption")
   dns_suffix                          = coalesce(var.cluster_iam_role_dns_suffix, data.aws_partition.current.dns_suffix)
 
-  managed_addon_roles_arn = {
-    for k in keys(aws_iam_role.addon_roles) :
-    k => aws_iam_role.addon_roles[k].arn
+  configured_addon_roles_arn = {
+    for k, v in merge(local.aws_managed_addons_default, var.cluster_addons) :
+    k =>
+    (
+      (try(var.cluster_addons[k].install, local.aws_managed_addons_default[k].install) && lookup(local.aws_managed_addons_default[k], "service_account_name", null) != null)
+      ? aws_iam_role.addon_roles[k].arn
+      : null
+    )
   }
 }
 
@@ -71,7 +76,7 @@ data "aws_iam_policy_document" "assume_trust_policy" {
 
 
 data "aws_iam_policy_document" "service_account_assume_trust_policy" {
-  for_each = { for k, v in local.configured_addons : k => v if v.install && contains(keys(v), "service_account_name") }
+  for_each = { for k, v in local.local_addons_merged : k => v if try(var.cluster_addons[k].install, v.install) && contains(keys(v), "service_account_name") }
 
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -222,7 +227,7 @@ resource "aws_iam_openid_connect_provider" "oidc_provider" {
 
 # Create the IAM role
 resource "aws_iam_role" "addon_roles" {
-  for_each = { for k, v in local.configured_addons : k => v if v.install && contains(keys(v), "service_account_name") }
+  for_each = { for k, v in local.local_addons_merged : k => v if try(var.cluster_addons[k].install, v.install) && contains(keys(v), "service_account_name") }
 
   name               = "${each.key}-rol"
   assume_role_policy = data.aws_iam_policy_document.service_account_assume_trust_policy[each.key].json
@@ -231,19 +236,19 @@ resource "aws_iam_role" "addon_roles" {
 }
 
 resource "aws_iam_role_policy_attachment" "vpc_cni_policy" {
-  count      = contains(keys(local.managed_addon_roles_arn), "vpc-cni") ? 1 : 0
+  count      = contains(keys(aws_iam_role.addon_roles), "vpc-cni") ? 1 : 0
   role       = aws_iam_role.addon_roles["vpc-cni"].name
   policy_arn = "${local.cluster_role_policy_prefix}/AmazonEKS_CNI_Policy"
 }
 
 resource "aws_iam_role_policy_attachment" "ebs_csi_policy" {
-  count      = contains(keys(local.managed_addon_roles_arn), "aws-ebs-csi-driver") ? 1 : 0
+  count      = contains(keys(aws_iam_role.addon_roles), "aws-ebs-csi-driver") ? 1 : 0
   role       = aws_iam_role.addon_roles["aws-ebs-csi-driver"].name
   policy_arn = "${local.cluster_role_policy_prefix}/service-role/AmazonEBSCSIDriverPolicy"
 }
 
 resource "aws_iam_role_policy_attachment" "efs_csi_policy" {
-  count      = contains(keys(local.managed_addon_roles_arn), "aws-efs-csi-driver") ? 1 : 0
+  count      = contains(keys(aws_iam_role.addon_roles), "aws-efs-csi-driver") ? 1 : 0
   role       = aws_iam_role.addon_roles["aws-efs-csi-driver"].name
   policy_arn = "${local.cluster_role_policy_prefix}/service-role/AmazonEFSCSIDriverPolicy"
 }

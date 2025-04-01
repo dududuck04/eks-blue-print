@@ -30,7 +30,6 @@ module "eks" {
   additional_cluster_security_group_name = var.additional_cluster_security_group_name
   create_cni_ipv6_iam_policy          = var.create_cni_ipv6_iam_policy
   cluster_security_group_additional_rules = var.cluster_security_group_additional_rules
-  cluster_security_group_use_name_prefix = var.cluster_security_group_use_name_prefix
   cluster_security_group_description  = var.cluster_security_group_description
   node_cluster_security_group_name    = var.node_cluster_security_group_name
 
@@ -93,6 +92,8 @@ module "eks" {
   self_managed_node_groups            = var.self_managed_node_groups
   self_managed_node_group_defaults    = var.self_managed_node_group_defaults
   eks_managed_node_group_defaults     = var.eks_managed_node_group_defaults
+
+  efs_id                              = var.efs_id
 
   # Fargate Profiles
   fargate_profiles                    = var.fargate_profiles
