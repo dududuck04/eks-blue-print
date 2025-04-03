@@ -1,0 +1,16 @@
+##########
+# Terraform Orga name
+########
+vpc_cidr = "172.31.62.128/25"
+
+pria_cidr = "172.31.62.128/26"
+pric_cidr = "172.31.62.192/26"
+
+secondary_cidr = "100.64.0.0/16"
+puba_cidr = "100.64.0.0/24"
+pubc_cidr = "100.64.1.0/24"
+pria_db_cidr = "100.64.2.0/24"
+pric_db_cidr = "100.64.3.0/24"
+
+pria_pod_cidr = "100.64.16.0/20"
+pric_pod_cidr = "100.64.32.0/20"
