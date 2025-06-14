@@ -1,0 +1,15 @@
+#argo-rollouts:
+#  controller:
+#    image:
+#      registry: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com
+#      repository: quay.io/argoproj/argo-rollouts
+#      tag: "v1.6.0"
+#      pullPolicy: IfNotPresent
+#
+#  dashboard:
+#    enabled: false
+#    image:
+#      registry: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com
+#      repository: quay.io/argoproj/kubectl-argo-rollouts
+#      tag: "v1.6.0"
+#      pullPolicy: IfNotPresent

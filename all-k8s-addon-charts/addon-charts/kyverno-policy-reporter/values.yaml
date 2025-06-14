@@ -1,0 +1,6 @@
+policy-reporter:
+  image:
+    registry: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com
+    repository: ghcr.io/kyverno/policy-reporter
+    pullPolicy: IfNotPresent
+    tag: 2.16.0

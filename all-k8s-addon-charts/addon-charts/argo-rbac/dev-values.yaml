@@ -1,0 +1,31 @@
+configs:
+  rbac:
+    create: "true"
+    policy_default: ""
+    scopes: "[email,groups]"
+    policy_csv: |
+      p, role:readonly, applications, get, */*, allow
+      p, role:readonly, projects, get, *, allow
+      p, role:readonly, clusters, get, *, allow
+      p, role:readonly, repositories, get, *, allow
+
+      p, role:developer, applications, sync, */*, allow
+      g, role:developer, role:readonly
+
+      p, role:operator, applications, sync, */*, allow
+      g, role:operator, role:readonly
+
+      p, role:admin, applications, *, */*, allow
+      p, role:admin, projects, *, *, allow
+      p, role:admin, clusters, *, *, allow
+      p, role:admin, repositories, *, *, allow
+      p, role:admin, accounts, *, *, allow
+      g, role:admin, role:readonly
+
+      g, eks-tdevsecops-viewer, role:readonly
+      g, eks-tdevsecops-developer, role:developer
+      g, eks-tdevsecops-operator, role:operator
+      g, eks-tdevsecops-admin, role:admin
+
+      p, automation, applications, *, */*, allow
+      p, automation, accounts, *, *, allow

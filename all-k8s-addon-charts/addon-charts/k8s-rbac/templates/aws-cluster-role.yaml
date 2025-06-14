@@ -1,0 +1,52 @@
+{{- range .Values.clusterRoles }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "false"
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+  name: {{ .role }}-cluster-role
+rules:
+- apiGroups:
+  {{- if eq .role "admin" }}
+  - "*"
+  {{- else }}
+  - ""
+  {{- range .apiGroups }}
+  - {{ . }}
+  {{- end }}
+  {{- end }}
+  resources:
+  {{- if eq .role "admin" }}
+  - "*"
+  {{- else }}
+  {{- range .resources }}
+  - {{ . }}
+  {{- end }}
+  {{- end }}
+  verbs:
+  {{- if eq .role "admin" }}
+  - "*"
+  {{- else }}
+  {{- range .verbs }}
+  - {{ . }}
+  {{- end }}
+  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+  name: {{ .role }}-cluster-rolebinding
+subjects:
+  - kind: Group
+    name: {{ .oktaGroup }}
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: {{ .role }}-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+---
+{{- end }}

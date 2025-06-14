@@ -1,0 +1,22 @@
+aws-efs-csi-driver:
+  image:
+    repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/amazon/aws-efs-csi-driver
+    tag: "v1.6.0"
+    pullPolicy: IfNotPresent
+
+  sidecars:
+    livenessProbe:
+      image:
+        repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/public.ecr.aws/eks-distro/kubernetes-csi/livenessprobe
+        tag: v2.10.0-eks-1-27-3
+        pullPolicy: IfNotPresent
+    nodeDriverRegistrar:
+      image:
+        repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/public.ecr.aws/eks-distro/kubernetes-csi/node-driver-registrar
+        tag: v2.8.0-eks-1-27-3
+        pullPolicy: IfNotPresent
+    csiProvisioner:
+      image:
+        repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/public.ecr.aws/eks-distro/kubernetes-csi/external-provisioner
+        tag: v3.5.0-eks-1-27-3
+        pullPolicy: IfNotPresent

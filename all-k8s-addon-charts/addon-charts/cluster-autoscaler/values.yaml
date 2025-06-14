@@ -1,0 +1,5 @@
+cluster-autoscaler:
+  image:
+    repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/registry.k8s.io/autoscaling/cluster-autoscaler
+    tag: v1.27.2
+    pullPolicy: IfNotPresent

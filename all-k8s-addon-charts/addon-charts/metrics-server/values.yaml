@@ -1,0 +1,10 @@
+metrics-server:
+  image:
+    repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/registry.k8s.io/metrics-server/metrics-server
+    tag: "v0.6.4"
+    pullPolicy: IfNotPresent
+
+  addonResizer:
+    image:
+      repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/registry.k8s.io/autoscaling/addon-resizer
+      tag: 1.8.14

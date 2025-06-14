@@ -1,0 +1,4 @@
+external-dns:
+  provider: "aws"
+  txtOwnerId: ""
+  domainFilters: []

@@ -1,0 +1,14 @@
+{{- if and (.Values.configs.rbac) (.Values.configs.rbac.create) -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-rbac-cm
+  namespace: argocd
+data:
+  create: "{{ .Values.configs.rbac.create }}"
+  policy.default: "{{ .Values.configs.rbac.policy_default }}"
+  scopes: "{{ .Values.configs.rbac.scopes }}"
+  {{- with .Values.configs.rbac.policy_csv }}
+  policy.csv: {{- toYaml . | indent 2 }}
+  {{- end }}
+{{- end }}

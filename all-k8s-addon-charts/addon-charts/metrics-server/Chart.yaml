@@ -1,0 +1,17 @@
+apiVersion: v2
+name: metrics-server
+description: A Helm chart for installing the Metrics Server
+type: application
+
+# The chart version. This version number should be incremented each time you make changes
+# to the chart and its templates, including the app version.
+version: 0.1.0
+
+# Version number of the application being deployed. This version number should be
+# incremented each time you make changes to the application.
+appVersion: "1.0"
+
+dependencies:
+- name: metrics-server
+  version: 3.11.0
+  repository: https://kubernetes-sigs.github.io/metrics-server/

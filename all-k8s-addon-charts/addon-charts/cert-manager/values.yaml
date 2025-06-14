@@ -1,0 +1,28 @@
+cert-manager:
+  image:
+    repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/quay.io/jetstack/cert-manager-controller
+    tag: v1.12.4
+    pullPolicy: IfNotPresent
+
+  webhook:
+    image:
+      repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/quay.io/jetstack/cert-manager-webhook
+      tag: v1.12.4
+      pullPolicy: IfNotPresent
+
+  cainjector:
+    image:
+      repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/quay.io/jetstack/cert-manager-cainjector
+      tag: v1.12.4
+      pullPolicy: IfNotPresent
+
+  acmesolver:
+    image:
+      repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/quay.io/jetstack/cert-manager-acmesolver
+      tag: v1.12.4
+
+  startupapicheck:
+    image:
+      repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/quay.io/jetstack/cert-manager-ctl
+      tag: v1.12.4
+      pullPolicy: IfNotPresent

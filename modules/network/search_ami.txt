@@ -1,0 +1,6 @@
+aws ec2 describe-images \
+  --region ap-northeast-2 \
+  --owners amazon \
+  --filters "Name=architecture,Values=x86_64" "Name=root-device-type,Values=ebs" "Name=virtualization-type,Values=hvm" "Name=name,Values=amzn2-ami-hvm-2023.*-x86_64-gp2" \
+  --query "Images[*].[ImageId,CreationDate]" \
+  --output text | sort -k2 -r | head -n1

@@ -1,0 +1,17 @@
+apiVersion: v2
+name: aws-for-fluent-bit
+description: A Helm chart to deploy aws-for-fluent-bit project
+type: application
+
+# The chart version. This version number should be incremented each time you make changes
+# to the chart and its templates, including the app version.
+version: 0.1.0
+
+# Version number of the application being deployed. This version number should be
+# incremented each time you make changes to the application.
+appVersion: "2.31.11"
+
+dependencies:
+- name: aws-for-fluent-bit
+  version: 2.31.11
+  repository: https://aws.github.io/eks-charts

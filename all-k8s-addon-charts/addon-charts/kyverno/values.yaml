@@ -1,0 +1,82 @@
+kyverno:
+  # Tests configuration
+  test:
+    image:
+      # -- (string) Image registry
+      registry: ~
+      # -- Image repository
+      repository: busybox
+      # -- Image tag
+      # Defaults to `latest` if omitted
+      tag: '1.35'
+      # -- (string) Image pull policy
+      # Defaults to image.pullPolicy if omitted
+      pullPolicy: ~
+
+  webhooksCleanup:
+    image: bitnami/kubectl:latest
+
+  cleanupJobs:
+    admissionReports:
+      image:
+        # -- (string) Image registry
+        registry: ~
+        # -- Image repository
+        repository: bitnami/kubectl
+        # -- Image tag
+        # Defaults to `latest` if omitted
+        tag: '1.26.4'
+        # -- (string) Image pull policy
+        # Defaults to image.pullPolicy if omitted
+        pullPolicy: ~
+
+    clusterAdmissionReports:
+      image:
+        # -- (string) Image registry
+        registry: ~
+        # -- Image repository
+        repository: bitnami/kubectl
+        # -- Image tag
+        # Defaults to `latest` if omitted
+        tag: '1.26.4'
+        pullPolicy: IfNotPresent
+
+  # Admission controller configuration
+  admissionController:
+    initContainer:
+      image:
+        registry: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com
+        repository: ghcr.io/kyverno/kyvernopre
+        tag: v1.10.3
+        pullPolicy: IfNotPresent
+
+    container:
+      image:
+        registry: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com
+        repository: ghcr.io/kyverno/kyverno
+        tag: v1.10.3
+        pullPolicy: IfNotPresent
+
+  # Background controller configuration
+  backgroundController:
+    image:
+      registry: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com
+      repository: ghcr.io/kyverno/background-controller
+      tag:  v1.10.3
+      pullPolicy: IfNotPresent
+
+  # Cleanup controller configuration
+  cleanupController:
+    image:
+      registry: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com
+      repository: ghcr.io/kyverno/cleanup-controller
+      tag: v1.10.3
+      pullPolicy: IfNotPresent
+
+  # Reports controller configuration
+  reportsController:
+    image:
+      registry: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com
+      repository: ghcr.io/kyverno/reports-controller
+      tag: v1.10.3
+      pullPolicy: IfNotPresent

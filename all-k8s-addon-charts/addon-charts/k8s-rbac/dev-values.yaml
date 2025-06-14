@@ -1,0 +1,45 @@
+clusterRoles:
+  - role: admin
+    oktaGroup: eks-tdevsecops-admin
+  - role: operator
+    oktaGroup: eks-tdevsecops-operator
+    apiGroups:
+    - ""
+    - "storage.k8s.io"
+    resources:
+    - "namespaces"
+    - "storageclasses"
+    verbs:
+    - "get"
+    - "list"
+    - "watch"
+    - "create"
+    - "apply"
+    - "patch"
+  - role: developer
+    oktaGroup: eks-tdevsecops-developer
+    apiGroups:
+    - ""
+    - "storage.k8s.io"
+    resources:
+    - "namespaces"
+    - "storageclasses"
+    verbs:
+    - "get"
+    - "list"
+    - "watch"
+    - "create"
+    - "apply"
+    - "patch"
+  - role: viewer
+    oktaGroup: eks-tdevsecops-viewer
+    apiGroups:
+    - ""
+    - "storage.k8s.io"
+    resources:
+    - "namespaces"
+    - "storageclasses"
+    verbs:
+    - "get"
+    - "list"
+    - "watch"

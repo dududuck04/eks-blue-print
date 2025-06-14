@@ -1,0 +1,42 @@
+clusterRoles:
+  - role: admin
+    oktaGroup: admin-group
+  - role: operator
+    oktaGroup: operator-group
+    apiGroups:
+    - ""
+    - "storage.k8s.io"
+    resources:
+    - "namespaces"
+    - "storageclasses"
+    verbs:
+    - "get"
+    - "list"
+    - "watch"
+    - "create"
+    - "apply"
+    - "patch"
+  - role: developer
+    oktaGroup: developer-group
+    apiGroups:
+    - ""
+    - "storage.k8s.io"
+    resources:
+    - "namespaces"
+    - "storageclasses"
+    verbs:
+    - "get"
+    - "list"
+    - "watch"
+  - role: viewer
+    oktaGroup: viewer-group
+    apiGroups:
+    - ""
+    - "storage.k8s.io"
+    resources:
+    - "namespaces"
+    - "storageclasses"
+    verbs:
+    - "get"
+    - "list"
+    - "watch"

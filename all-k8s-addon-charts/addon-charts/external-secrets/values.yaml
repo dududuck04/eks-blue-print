@@ -1,0 +1,17 @@
+external-secrets:
+  image:
+    repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/ghcr.io/external-secrets/external-secrets
+    pullPolicy: IfNotPresent
+    tag: "v0.9.4"
+
+  webhook:
+    image:
+      repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/ghcr.io/external-secrets/external-secrets
+      pullPolicy: IfNotPresent
+      tag: "v0.9.4"
+
+  certController:
+    image:
+      repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/ghcr.io/external-secrets/external-secrets
+      pullPolicy: IfNotPresent
+      tag: "v0.9.4"

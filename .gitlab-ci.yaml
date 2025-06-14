@@ -1,0 +1,36 @@
+stages:
+  - terraform
+  - deploy
+
+# Stage 1: Run Terraform to manage infrastructure
+terraform:
+  stage: terraform
+  script:
+    - echo "Running Terraform..."
+    - cd ENV/DEV/ECR
+    - make init
+    - make apply
+    - export AWS_REGION=$(terraform output -raw current_region)
+    - export GITLAB_RUNNER_ROLE_ARN=$(terraform output -raw gitlab_runner_role_arn)
+    - echo "AWS_REGION=$AWS_REGION" >> ../../build.env
+    - echo "GITLAB_RUNNER_ROLE_ARN=$GITLAB_RUNNER_ROLE_ARN" >> ../../build.env
+  artifacts:
+    paths:
+      - build.env
+    reports:
+      dotenv: build.env
+
+deploy:
+  stage: deploy
+  script:
+    - echo "Starting deployment..."
+    - source build.env  # 환경 변수 로드
+    - echo "Deploying resources in AWS region: $AWS_REGION"
+    - echo "Using IAM Role ARN: $GITLAB_RUNNER_ROLE_ARN"
+    # AWS CLI 명령 예제
+    - export AWS_WEB_IDENTITY_TOKEN=$(cat $CI_JOB_JWT)
+    - aws sts assume-role-with-web-identity \
+      --role-arn $GITLAB_RUNNER_ROLE_ARN \
+      --role-session-name gitlab-runner-session \
+      --web-identity-token $AWS_WEB_IDENTITY_TOKEN \
+      --duration-seconds 3600

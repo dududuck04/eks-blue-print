@@ -1,0 +1,61 @@
+## https://argo-cd.readthedocs.io/en/stable/user-guide/application-specification/
+{{- range $key, $value := .Values.Addons }}
+{{- if and ($value) ($value.enable) }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ $value.name | default $key }}
+  namespace: {{ $.Values.argoNamespace | default "argocd" }}
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ $.Values.argoProject | default "default" }}
+  source:
+    repoURL: {{ coalesce $value.repoUrl $.Values.repoUrl }}
+    path: all-k8s-addon-charts/addon-charts/{{ coalesce $value.path $value.name $key }}
+    targetRevision: {{ coalesce $value.targetRevision $.Values.targetRevision }}
+    {{- if eq $value.sourceType "kustomize" }}
+    kustomize:
+      {{- toYaml $value.kustomize | nindent 6}}
+    {{- else if eq $value.sourceType "directory" }}
+    directory:
+      {{- toYaml $value.directory | nindent 6}}
+    {{- else }}
+    helm:
+      ignoreMissingValueFiles: true
+      {{- if $value.values }}
+      values: |
+        {{- if $value.use_parent_chart }}
+        {{- toYaml $value.values | nindent 8 }}
+        {{- else }}
+        {{ coalesce $value.name $key }}:
+        {{- toYaml $value.values | nindent 10 }}
+        {{- end }}
+      {{- end }}
+      valueFiles:
+      {{- with $value.valueFiles }}
+      {{- toYaml . | nindent 6}}
+      {{- else }}
+      - values.yaml
+      - {{ coalesce $value.targetRevision $.Values.targetRevision }}-values.yaml
+      {{- end }}
+   {{- end }}   
+  destination:
+    server: {{ coalesce $value.destinationServer $.Values.destinationServer "https://kubernetes.default.svc" }}
+    namespace: {{ coalesce $value.namespace $.Values.namespace "addons" }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace={{ $value.createNamespace | default true}}
+      - ServerSideApply={{ $value.serverSideApply | default true}}
+    retry:
+      limit: 1
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 1m  
+{{- end }}
+{{- end -}}

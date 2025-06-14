@@ -1,0 +1,30 @@
+.PHONY: init
+init: <env>_init
+<env>_init:
+	terraform init -backend-config=env/<abbr_region>-<env>.hcl -reconfigure -upgrade
+
+.PHONY: plan
+plan: <env>_plan
+<env>_plan:
+	terraform plan -var-file=env/<abbr_region>-<env>.tfvars
+
+.PHONY: apply
+apply: <env>_apply
+<env>_apply:
+	terraform apply -var-file=env/<abbr_region>-<env>.tfvars
+
+.PHONY: apply_all
+.PHONY: <env>_apply_all
+apply_all: <env>_apply_all
+<env>_apply_all:
+	terraform apply -var-file=env/<abbr_region>-<env>.tfvars -auto-approve
+
+.PHONY: destroy
+destroy: <env>_destroy
+<env>_destroy:
+	terraform destroy -var-file=env/<abbr_region>-<env>.tfvars
+
+.PHONY: clean
+clean:
+	rm -rf .terraform
+	rm -rf .terraform.lock.hcl

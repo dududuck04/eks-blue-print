@@ -1,0 +1,5 @@
+aws-cloudwatch-metrics:
+  image:
+    repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/amazon/cloudwatch-agent
+    tag: 1.247350.0b251780
+    pullPolicy: IfNotPresent

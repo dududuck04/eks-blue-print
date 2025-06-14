@@ -1,0 +1,7 @@
+#reloader:
+#  reloader:
+#    deployment:
+#      image:
+#        name: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/ghcr.io/stakater/reloader
+#        tag: v1.0.40
+#        pullPolicy: IfNotPresent

@@ -1,0 +1,18 @@
+policy-reporter:
+  resources:
+    limits:
+      memory: 100Mi
+      cpu: 10m
+    requests:
+      memory: 75Mi
+      cpu: 5m
+
+  api:
+    enabled: true
+
+  # enable policy-report-ui
+  ui:
+    enabled: true
+
+  kyvernoPlugin:
+    enabled: true

@@ -1,0 +1,5 @@
+aws-for-fluent-bit:
+image:
+  repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/public.ecr.aws/aws-observability/aws-for-fluent-bit
+  tag: 2.31.11
+  pullPolicy: IfNotPresent

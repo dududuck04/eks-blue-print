@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# Update system and install essential tools
+yum update -y
+yum install -y git gcc make
+yum groupinstall "Development Tools" -y
+
+# Enable and start AWS SSM agent
+systemctl enable amazon-ssm-agent
+systemctl start amazon-ssm-agent
+
+# Set up passwordless sudo for commands needed for Homebrew
+echo '${username} ALL=(ALL) NOPASSWD: ALL' | sudo EDITOR='tee -a' visudo -f /etc/sudoers.d/90-cloud-init-users
+
+# Switch to ${username} to install Homebrew
+sudo -u ${username} -i /bin/bash -c "curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | bash"
+
+# Add Homebrew to ${username}'s PATH via .bashrc
+echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> /home/${username}/.bashrc
+sudo -u ${username} bash -c "source /home/${username}/.bashrc && brew doctor"
+
+# Install development tools with Homebrew
+sudo -iu ${username} brew install tfenv kubectl krew jq kubecolor derailed/k9s/k9s helm kube-ps1 fzf
+
+# Install Krew plugins
+sudo -iu ${username} kubectl krew install neat ctx ns df-pv
+
+# Install Node.js
+sudo -iu ${username} bash -c 'brew install nvm'
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$(brew --prefix nvm)/nvm.sh" ] && \. "$(brew --prefix nvm)/nvm.sh"
+
+nvm install 20
+nvm alias default 20
+
+# Install Kubectl Convert
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl-convert"
+sudo install -o ${username} -g ${username} -m 0755 kubectl-convert /usr/local/bin/kubectl-convert
+
+# Eksctl Install
+curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+sudo mv /tmp/eksctl /usr/local/bin
+
+# eksctl 자동완성 - bash
+. <(eksctl completion bash)
+eksctl version
+
+
+# Install and set Terraform version
+sudo -iu ${username} tfenv install 1.10.2
+sudo -iu ${username} tfenv use 1.10.2
+
+# Configure kubectl and other CLI tools in .bash_profile for interactive sessions
+echo 'source <(kubectl completion bash)' >> /home/${username}/.bash_profile
+echo 'alias k=kubectl' >> /home/${username}/.bash_profile
+echo 'complete -o default -F __start_kubectl k' >> /home/${username}/.bash_profile
+echo 'alias kubectl="kubecolor"' >> /home/${username}/.bash_profile
+echo 'source "$(brew --prefix)/opt/kube-ps1/share/kube-ps1.sh"' >> /home/${username}/.bash_profile
+echo 'PS1="[\$(kube_ps1)] \u@\h:\w\$ "' >> /home/${username}/.bash_profile

@@ -1,0 +1,28 @@
+# Global Values
+repoUrl: ''
+targetRevision: 'dev'
+region: ''
+account: ''
+clusterName: ''
+destinationServer: ''
+argoNamespace: ''
+argoProject: ''
+Addons:
+  # Kyverno
+  kyverno:
+    enable: true    
+  kyverno-policies:
+    enable: true
+    use_parent_chart: true
+  kyverno-policy-reporter:
+    enable: true
+
+################################################################################
+# values.yaml이나 환경-values.yaml이 아닌 다른 values 파일 사용이 필요항 경우 참고
+################################################################################
+# kyverno:
+#   enable: true
+#   createNamespace: true
+#   valueFiles:
+#   - values.yaml
+#   - test-values.yaml

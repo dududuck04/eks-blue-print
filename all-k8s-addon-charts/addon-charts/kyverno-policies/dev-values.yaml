@@ -1,0 +1,12 @@
+# -- Additional policies to include from `other`.
+includeOtherPolicies:
+  - restrict-image-registries #ACSE-59
+  - verify-image #ACSE-224
+
+verifyImage:
+  allowedImageRegistry: "539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/*" #devsecops
+  signedImagePublicKey: |-
+    -----BEGIN PUBLIC KEY-----
+    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0/5da3GZmSerHq/8CEFN5Y1Q4cqr
+    oIPWE+zP3dEo/+o7pvHjdM/OF0h0/zjuhGYlAy2rB7NPzPLEIGBpj7oNiA==
+    -----END PUBLIC KEY-----

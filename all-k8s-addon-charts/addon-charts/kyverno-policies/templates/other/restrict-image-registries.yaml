@@ -1,0 +1,64 @@
+{{- $name := "restrict-image-registries" }}
+{{- if eq (include "kyverno-policies.podSecurityOther" (merge (dict "name" $name) .)) "true" }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ $name }}
+  annotations:
+    {{- with .Values.autogenControllers }}
+    pod-policies.kyverno.io/autogen-controllers: {{ . }}
+    {{- end }}
+    policies.kyverno.io/title: Restrict Image Registries
+    policies.kyverno.io/category: Best Practices, EKS Best Practices
+    {{- if .Values.podSecuritySeverity }}
+    policies.kyverno.io/severity: {{ .Values.podSecuritySeverity }}
+    {{- end }}
+    policies.kyverno.io/minversion: 1.6.0
+    kyverno.io/kubernetes-version: "1.26-1.28"
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Images from unknown, public registries can be of dubious quality and may not be
+      scanned and secured, representing a high degree of risk. Requiring use of known, approved
+      registries helps reduce threat exposure by ensuring image pulls only come from them. This
+      policy validates that container images only originate from the registry `eu.foo.io` or
+      `bar.io`. Use of this policy requires customization to define your allowable registries.
+  labels: {{ include "kyverno-policies.labels" . | nindent 4 }}
+spec:
+  {{- with index .Values "validationFailureActionByPolicy" $name }}
+  validationFailureAction: {{ toYaml . }}
+  {{- else }}
+  validationFailureAction: {{ .Values.validationFailureAction }}
+  {{- end }}
+  {{- with concat (index .Values "validationFailureActionOverrides" "all") (default list (index .Values "validationFailureActionOverrides" $name)) }}
+  validationFailureActionOverrides: {{ toYaml . | nindent 4 }}
+  {{- end }}
+  background: {{ .Values.background }}
+  failurePolicy: {{ .Values.failurePolicy }}
+  rules:
+  - name: validate-registries
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+    {{- with index .Values "policyExclude" $name }}
+    exclude:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with index .Values "policyPreconditions" $name }}
+    preconditions:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    validate:
+      message: "Unknown image registry."
+      pattern:
+        spec:
+          =(ephemeralContainers): #임시 컨테이너
+          - image: ""
+          =(initContainers): #초기화 전용 컨테이너
+          - image: ""
+          containers:
+          - image: "602401143452.dkr.ecr.ap-northeast-2.amazonaws.com/*" # AWS EKS Service Team
+          - image: "539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/*" # 중앙 ECR (devsecops)
+          - image: "164263112541.dkr.ecr.ap-northeast-2.amazonaws.com/*" # 서비스 ECR (tdevsecops)
+{{- end }}

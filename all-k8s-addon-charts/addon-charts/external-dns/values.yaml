@@ -1,0 +1,9 @@
+external-dns:
+  # Default values for external-dns.
+  # This is a YAML-formatted file.
+  # Declare variables to be passed into your templates.
+
+  image:
+    repository: 539666729110.dkr.ecr.ap-northeast-2.amazonaws.com/registry.k8s.io/external-dns/external-dns
+    tag: "v0.13.6"
+    pullPolicy: IfNotPresent

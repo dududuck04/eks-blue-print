@@ -1,0 +1,16 @@
+clusterName: ${eks_cluster_id}
+region: ${aws_region}
+image:
+  repository: ${repository}
+  pullPolicy: IfNotPresent
+
+shield:
+  enabled: false
+waf:
+  enabled: true
+wafv2:
+  enabled: true
+
+serviceMonitor:
+  enabled: false
+

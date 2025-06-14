@@ -1,0 +1,4 @@
+configs:
+  rbac:
+    create: "true"
+    scopes: "[email,groups]"
