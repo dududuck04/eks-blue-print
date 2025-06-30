@@ -1,0 +1,69 @@
+# values.yaml (예시)
+
+global:
+  image:
+    repository: "${repository}"
+    tag: "v3.0.0"
+    imagePullPolicy: IfNotPresent
+
+dex:
+  enabled: false
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: ""
+  image:
+    repository: redis
+    tag: "7.0.11-alpine"
+
+# Redis-HA를 끄고 단일 Redis만 사용
+redis-ha:
+  enabled: false
+
+server:
+  # 서버 Pod(Replica) 자동 확장
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+
+  ingress:
+    enabled: true
+    ingressClassName: "alb"
+    hostname: "argocd.${domain}"
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+
+      alb.ingress.kubernetes.io/load-balancer-name: "${argocd_ingress_alb_name}"
+      alb.ingress.kubernetes.io/security-groups: "${alb_security_group_id}"
+      alb.ingress.kubernetes.io/manage-backend-security-group-rules: "true"
+
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
+      alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+      alb.ingress.kubernetes.io/healthcheck-path: /healthz
+      alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+      alb.ingress.kubernetes.io/deletion-protection.enabled: false
+
+  # Service 타입을 ClusterIP로 지정
+  service:
+    type: ClusterIP
+
+configs:
+  cm:
+    # Argo CD 관리자 계정 활성화
+    admin.enabled: true
+    # 별도 계정(automation)을 API key로 활용
+    accounts.automation: apiKey
+    # UI 접속 주소 (예: https://argocd.dev.company.com)
+    url: "${argocd_login_url}"
+  params:
+    server.insecure: true
+
+repoServer:
+  # RepoServer 역시 HPA 설정 가능
+  autoscaling:
+    enabled: true
+    minReplicas: 1
